@@ -1,0 +1,149 @@
+name: Daily Scholar Digest
+
+on:
+  # ── Scheduled run ─────────────────────────────────────────────────────────
+  schedule:
+    - cron: "0 8 * * *"     # Every day at 08:00 UTC (adjust as needed)
+
+  # ── Manual trigger with parameter overrides ────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      keywords:
+        description: "Comma-separated keywords (overrides PUSH_KEYWORDS secret)"
+        required: false
+        default: ""
+      channels:
+        description: "Comma-separated channels: slack,telegram,email,wecom,feishu"
+        required: false
+        default: ""
+      since_days:
+        description: "Look back N days"
+        required: false
+        default: "7"
+      max_papers:
+        description: "Max papers per keyword"
+        required: false
+        default: "5"
+      dry_run:
+        description: "Build digest but do NOT send"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  digest:
+    name: Build and push digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install package
+        run: uv pip install -e "."
+
+      # ── Override env vars from manual inputs ────────────────────────────
+      - name: Apply workflow_dispatch overrides
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          [ -n "${{ github.event.inputs.keywords }}" ] && echo "PUSH_KEYWORDS=${{ github.event.inputs.keywords }}" >> $GITHUB_ENV
+          [ -n "${{ github.event.inputs.channels }}" ] && echo "PUSH_CHANNELS=${{ github.event.inputs.channels }}" >> $GITHUB_ENV
+          [ -n "${{ github.event.inputs.since_days }}" ] && echo "PUSH_SINCE_DAYS=${{ github.event.inputs.since_days }}" >> $GITHUB_ENV
+          [ -n "${{ github.event.inputs.max_papers }}" ] && echo "PUSH_MAX_PAPERS_PER_KEYWORD=${{ github.event.inputs.max_papers }}" >> $GITHUB_ENV
+
+      # ── Dry run: build digest, skip pushing ─────────────────────────────
+      - name: Run digest (dry run — no push)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        env:
+          PUSH_KEYWORDS: ${{ secrets.PUSH_KEYWORDS }}
+          PUSH_CHANNELS: ""   # empty string = build only, no dispatch
+          PUSH_SINCE_DAYS: ${{ secrets.PUSH_SINCE_DAYS || '7' }}
+          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
+          PUSH_DIGEST_TITLE: ${{ secrets.PUSH_DIGEST_TITLE || 'Scholar Daily Digest' }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+          UNPAYWALL_EMAIL: ${{ secrets.UNPAYWALL_EMAIL }}
+          IEEE_API_KEY: ${{ secrets.IEEE_API_KEY }}
+          SUB_AGENT_API_KEY: ${{ secrets.SUB_AGENT_API_KEY }}
+          SUB_AGENT_BASE_URL: ${{ secrets.SUB_AGENT_BASE_URL }}
+          SUB_AGENT_MODEL: ${{ secrets.SUB_AGENT_MODEL }}
+        run: |
+          echo "=== DRY RUN — digest will be built but NOT sent ==="
+          python -m paper_distill_pro.push.scheduler
+
+      # ── Live run ─────────────────────────────────────────────────────────
+      - name: Run digest (live push)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          # ── Digest settings ──────────────────────────────────────────────
+          PUSH_KEYWORDS: ${{ secrets.PUSH_KEYWORDS }}
+          PUSH_SINCE_DAYS: ${{ secrets.PUSH_SINCE_DAYS || '7' }}
+          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
+          PUSH_DIGEST_TITLE: ${{ secrets.PUSH_DIGEST_TITLE || 'Scholar Daily Digest' }}
+          PUSH_CHANNELS: ${{ secrets.PUSH_CHANNELS || 'slack' }}
+
+          # ── Push channels ────────────────────────────────────────────────
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+
+          # ── SMTP email ───────────────────────────────────────────────────
+          SMTP_HOST: ${{ secrets.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+
+          # ── Academic API keys ────────────────────────────────────────────
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+          UNPAYWALL_EMAIL: ${{ secrets.UNPAYWALL_EMAIL }}
+          PUBMED_API_KEY: ${{ secrets.PUBMED_API_KEY }}
+          IEEE_API_KEY: ${{ secrets.IEEE_API_KEY }}
+
+          # ── LLM Sub-agent (optional) ─────────────────────────────────────
+          SUB_AGENT_API_KEY: ${{ secrets.SUB_AGENT_API_KEY }}
+          SUB_AGENT_BASE_URL: ${{ secrets.SUB_AGENT_BASE_URL }}
+          SUB_AGENT_MODEL: ${{ secrets.SUB_AGENT_MODEL }}
+
+          # ── Sync targets (for optional auto-sync after digest) ───────────
+          ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
+          ZOTERO_USER_ID: ${{ secrets.ZOTERO_USER_ID }}
+          MENDELEY_CLIENT_ID: ${{ secrets.MENDELEY_CLIENT_ID }}
+          MENDELEY_CLIENT_SECRET: ${{ secrets.MENDELEY_CLIENT_SECRET }}
+          MENDELEY_ACCESS_TOKEN: ${{ secrets.MENDELEY_ACCESS_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+
+        run: python -m paper_distill_pro.push.scheduler
+
+      # ── On failure: upload logs ──────────────────────────────────────────
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-failure-log-${{ github.run_id }}
+          path: "*.log"
+          retention-days: 7
+
+      # ── Summary ──────────────────────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 📚 Digest Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Keywords:** \`${{ secrets.PUSH_KEYWORDS }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Channels:** \`${{ secrets.PUSH_CHANNELS }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
