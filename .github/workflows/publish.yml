@@ -21,7 +21,12 @@ jobs:
         run: uv build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Configure PyPI Trusted Publisher:
-        #   Owner: your-github-username
-        #   Repo:  paper-distill-pro
-        #   Workflow: publish.yml
+        with:
+          verbose: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
+        # NOTE: For first-time publication, you need to:
+        # 1. Create a PyPI account
+        # 2. Create an API token at https://pypi.org/manage/account/token/
+        # 3. Add it as a repository secret named PYPI_API_TOKEN
+        # 4. After first publication, configure trusted publishing:
+        #    https://docs.pypi.org/trusted-publishers/adding-a-publisher/
