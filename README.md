@@ -170,7 +170,7 @@ uvx paper-distill-pro
 pip install paper-distill-pro
 
 # 使用 uv（更快）
-uv pip install paper-distill-pro
+uv pip install --system paper-distill-pro
 ```
 
 ### 开发者安装
