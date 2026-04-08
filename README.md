@@ -1,408 +1,478 @@
 # paper-distill-pro
 
-**基于 MCP 协议的学术论文搜索、智能筛选与多平台推送服务器**
+**基于 MCP 协议的学术论文智能检索与分析平台**
 
-> 11 源并行检索 · PDF 全文解析 + LLM 增强 · Obsidian / Zotero / Mendeley / Notion 双向同步 · 飞书/Slack/邮件定时推送
+> **12个学术数据库并行检索** • **PDF全文解析与LLM增强** • **双向文献管理同步** • **多平台自动推送**
 
 ---
 
 ## 目录
 
-1. [项目概述](#1-项目概述)
-2. [设计思路](#2-设计思路)
-3. [系统架构](#3-系统架构)
-4. [目录结构](#4-目录结构)
-5. [核心模块详解](#5-核心模块详解)
-6. [MCP Server 工具清单](#6-mcp-server-工具清单)
-7. [GitHub Actions 工作流](#7-github-actions-工作流)
-8. [安装与配置](#8-安装与配置)
-9. [接入 AI 客户端](#9-接入-ai-客户端)
-10. [典型使用场景](#10-典型使用场景)
-11. [扩展开发指南](#11-扩展开发指南)
-12. [测试](#12-测试)
-13. [常见问题](#13-常见问题)
-14. [技术选型](#14-技术选型)
-15. [附录：快速参考](#15-附录快速参考)
+1. [项目概述](#项目概述)
+2. [核心功能](#核心功能)
+3. [支持的数据源](#支持的数据源)
+4. [���统架构](#系统架构)
+5. [安装指南](#安装指南)
+6. [配置说明](#配置说明)
+7. [MCP工具参考](#mcp工具参考)
+8. [使用示例](#使用示例)
+9. [AI客户端集成](#ai客户端集成)
+10. [GitHub Actions自动化](#github-actions自动化)
+11. [开发指南](#开发指南)
+12. [测试](#测试)
+13. [常见问题](#常见问题)
 
 ---
 
-## 1 项目概述
+## 项目概述
 
-paper-distill-pro 是一个完整的学术论文自动化处理平台，通过 **MCP（Model Context Protocol）** 协议暴露给 Claude Desktop、Cursor、VS Code 等 AI 客户端使用。
+**paper-distill-pro** 是一个基于模型上下文协议（MCP）的学术论文处理服务器，为研究人员提供统一的文献检索、分析和管理接口。通过 Claude、Cursor、VS Code 等 AI 助手，您可以：
 
-### 支持的 11 个数据源
+- **一键检索12个权威学术数据库**
+- **智能去重与相关性排序**
+- **PDF全文解析与深度分析**
+- **与主流文献管理工具双向同步**
+- **自动化研究摘要推送**
 
-| 数据源 | 领域 | 是否需要 API Key |
-|--------|------|-----------------|
-| OpenAlex | 综合（250M+ 论文） | 否 |
-| arXiv | CS / 物理 / 数学预印本 | 否 |
-| Semantic Scholar | 综合 + 引用图谱 | 否（有 key 速率更高）|
-| PubMed | 生物医学 | 否（有 key 速率更高）|
-| CrossRef | DOI 元数据 | 否 |
-| Europe PMC | 生命科学 | 否 |
-| bioRxiv | 生物学预印本 | 否 |
-| DBLP | 计算机科学 | 否 |
-| Papers with Code | ML + 代码 | 否 |
-| **IEEE Xplore** | 工程 / 电子 / CS | **是（免费申请）** |
-| **ACM Digital Library** | 计算机科学 | 否（元数据免费）|
-| **SSRN** | 社会科学 / 经济 / 法律 | 否（有 key 更完整）|
+### 为���么选择 paper-distill-pro？
+
+- **🚀 极速并行**：同时查询12个数据库，几秒内获得全面结果
+- **🎯 精准去重**：三级去重策略，避免重复文献
+- **📊 智能排序**：综合相关性、时效性和引用量的评分算法
+- **🔄 双向同步**：支持 Zotero、Mendeley、Notion、Obsidian 互操作
+- **📱 多端推送**：自动摘要推送到 Slack、Telegram、邮箱等平台
 
 ---
 
-## 2 设计思路
+## 核心功能
 
-### 2.1 服务器不内置 LLM
+### 1. 多源学术检索
 
-MCP 服务器只做**纯数据操作**：搜索、去重、解析、同步、推送。所有推理（总结、对比、提炼）交由 AI 客户端完成，不额外调用 LLM API。
+并行查询 **12个权威学术数据库**：
 
-### 2.2 OA-First 全文获取
+| 数据库 | 领域覆盖 | 需要API密钥 |
+|--------|----------|-------------|
+| **OpenAlex** | 综合性（2.5亿+论文） | 否 |
+| **arXiv** | 计算机/物理/数学预印本 | 否 |
+| **Semantic Scholar** | 综合性+引用图谱 | 否（有密钥速率更高） |
+| **PubMed** | 生物医学 | 否（有密钥速率更高） |
+| **CrossRef** | DOI元数据 | 否 |
+| **Europe PMC** | 生命科学 | 否 |
+| **bioRxiv** | 生物学预印本 | 否 |
+| **DBLP** | 计算机科学 | 否 |
+| **Papers with Code** | 机器学习+代码实现 | 否 |
+| **IEEE Xplore** | 工程/电子/计算机 | 是（免费申请） |
+| **ACM Digital Library** | 计算机科学 | 否 |
+| **SSRN** | 社会科学/经济/法律 | 否（有密钥更完整） |
 
-```
-paper.pdf_url（元数据中已知）
-  → CORE API（2 亿+ OA 论文，需 CORE_API_KEY）
-    → Unpaywall（法律合规，仅需邮箱）
-      → arXiv 直链（对 CS/物理论文最有效）
-        → None → 调用方降级到摘要
-```
+### 2. 智能论文排序
 
-### 2.3 三级去重策略
-
-```
-优先级 1：DOI（规范化小写）
-优先级 2：arXiv ID
-优先级 3：标题前 50 字符 + 年份哈希
-
-重复项的元数据会【合并】到主记录，不简单丢弃。
-```
-
-### 2.4 评分公式
-
-```
-score = 0.40 × relevance       # 查询词命中率（标题 + 摘要）
-      + 0.35 × recency         # exp(-age/10)，10 年论文 ≈ 0.37
-      + 0.25 × citation_norm   # log1p(n) / log1p(max)
-```
-
-三个权重在 `search/engine.py` 的 `_score()` 函数中直接修改。
-
-### 2.5 双向同步设计
-
-每个文献管理工具均实现了 `sync_to_*`（推送）和 `pull_from_*`（拉取）两个方向，支持工具间互相迁移数据。
-
----
-
-## 3 系统架构
-
-```
-AI 客户端（Claude · Cursor · VS Code · Gemini CLI …）
-        ↓  MCP（stdio 或 HTTP/SSE）
-┌────────────────────────────────────────────────────────────┐
-│                    paper-distill-pro                       │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  search/   11 源并发 → 去重合并 → 评分排序           │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                                                            │
-│  ┌─────────────────┐  ┌──────────────────────────────┐   │
-│  │  fulltext/      │  │  sync/（双向）                │   │
-│  │  OA 4 级降级   │  │  Zotero ↔ Web API v3          │   │
-│  │  PyMuPDF 解析  │  │  Mendeley ↔ OAuth 2.0         │   │
-│  │  章节结构提取  │  │  Notion ↔ Database API         │   │
-│  └─────────────────┘  └──────────────────────────────┘   │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  push/  digest → dispatcher → Slack/TG/Email/WeCom   │ │
-│  └──────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────┘
-         ↓ HTTP / REST
-11 个学术数据源
-```
-
----
-
-## 4 目录结构
-
-```
-paper-distill-pro/
-├── pyproject.toml                        # 打包；2 个 CLI 入口
-├── .env.example                          # 全部环境变量模板
-├── .gitignore
-│
-├── .github/workflows/
-│   ├── ci.yml                            # lint + test + build
-│   ├── daily-digest.yml                  # 每日 08:00 UTC 定时推送
-│   └── publish.yml                       # release tag → PyPI
-│
-└── src/paper_distill_pro/
-    ├── server.py                         # MCP 入口，注册 17 个 Tool
-    ├── models.py                         # 全局 Pydantic 数据模型
-    ├── config.py                         # 环境变量管理
-    │
-    ├── search/
-    │   ├── engine.py                     # 并发引擎 + 评分
-    │   ├── dedup.py                      # 三级去重 + 元数据合并
-    │   └── sources/
-    │       ├── __init__.py               # ALL_CONNECTORS 注册表（12 个）
-    │       ├── base.py                   # 抽象基类 + HTTP + 重试
-    │       ├── openalex.py               # 倒排索引摘要重建
-    │       ├── arxiv.py                  # Atom XML 解析
-    │       ├── semantic_scholar.py       # 含引用图 API
-    │       ├── pubmed.py                 # E-utilities 两阶段
-    │       ├── crossref.py
-    │       ├── other.py                  # EuropePMC/bioRxiv/DBLP/PwC
-    │       └── premium.py                # IEEE / ACM / SSRN
-    │
-    ├── fulltext/
-    │   ├── fetcher.py                    # OA 链路 4 级降级
-    │   ├── parser.py                     # PyMuPDF + 章节正则 + QA 组装
-    │   └── sub_agent.py                  # LLM 子代理（Claude / OpenAI 兼容）
-    │
-    ├── sync/
-    │   ├── zotero.py                     # Zotero Web API v3（双向）
-    │   ├── mendeley.py                   # Mendeley OAuth 2.0（双向）
-    │   ├── notion.py                     # Notion API 2022-06-28（双向）
-    │   └── obsidian.py                   # Obsidian vault（双向，本地文件系统）
-    │
-    └── push/
-        ├── digest.py                     # 并发搜索，组装 Digest
-        ├── dispatcher.py                 # 扇出到多渠道
-        ├── scheduler.py                  # paper-distill-push CLI
-        └── channels/
-            ├── slack.py                  # Block Kit JSON
-            ├── telegram.py               # HTML，自动分段
-            ├── email.py                  # HTML 模板，aiosmtplib
-            ├── wecom.py                  # 企业微信 Markdown
-            └── feishu.py                 # 飞书 Interactive Card
-```
-
----
-
-## 5 核心模块详解
-
-### 5.1 数据模型 `models.py`
+采用加权评分算法：
 
 ```python
-class Paper(BaseModel):
-    title: str
-    authors: list[Author]       # Author(name, affiliation, orcid)
-    year: Optional[int]
-    doi: Optional[str]
-    arxiv_id: Optional[str]
-    abstract: Optional[str]
-    citation_count: int = 0
-    source: str                 # 来自哪个 connector
-    oa_url: Optional[str]       # 开放获取 URL
-    pdf_url: Optional[str]      # 直接 PDF 链接
-    score: float = 0.0          # 评分后填入
-    # 各数据源专属 ID
-    pubmed_id / ieee_id / acm_id / ssrn_id / mendeley_id / zotero_key
-
-    @property
-    def dedup_key(self) -> str:   # DOI > arXiv > 标题哈希
+score = 0.40 × relevance       # 查询词匹配度（标题+摘要）
+      + 0.35 × recency         # 时间衰减：exp(-age/10)
+      + 0.25 × citation_norm   # 归一化引用量
 ```
 
-### 5.2 `search/` — 11 源并行搜索
+**可定制权重**：在 `search/engine.py` 中调整权重系数。
 
-#### 并发核心
+### 3. 三级去重策略
 
-```python
-raw = await asyncio.gather(*tasks, return_exceptions=True)
-# return_exceptions=True：单源失败不影响其他源
-all_papers = [p for result in raw if not isinstance(result, Exception) for p in result]
-papers = deduplicate(all_papers)
+```
+优先级1: DOI（规范化小写）
+优先级2: arXiv ID
+优先级3: 标题哈希（前50字符+年份）
 ```
 
-#### 三个新数据源要点
+**智能合并**：重复论文的元数据会合并到主记录，保留最完整的信息。
 
-**IEEE Xplore**
-- `IEEE_API_KEY` 未设置时静默跳过，不报错
-- 支持 `access_type == "OPEN_ACCESS"` 填充 `oa_url`
-- 免费申请：[developer.ieee.org](https://developer.ieee.org)
+### 4. 全文处理能力
 
-**ACM Digital Library**
-- 无需 API Key，优先尝试 JSON 接口，失败降级正则提取 HTML
-- 全文仍需机构订阅，元数据（DOI、标题、年份）免费
+- **四级开放获取链**：元数据 → CORE API → Unpaywall → arXiv直链
+- **PDF智能解析**：基于 PyMuPDF 的章节识别与提取
+- **LLM增强分析**：可选的子代理深度分析功能
+- **章节感知提取**：自动识别摘要、引言、方法、结果、结论、参考文献
 
-**SSRN**
-- 有 `SSRN_API_KEY` 时用官方 API，无 Key 时抓取公开搜索页
-- 以下载量（downloads）作为引用量代理指标
+### 5. 文献管理集成
 
-### 5.3 `fulltext/` — PDF 全文解析
+**双向同步**支持主流工具：
 
-章节识别正则（行首锚定，避免正文误匹配）：
+- **Zotero**：Web API v3，支持集合管理
+- **Mendeley**：OAuth 2.0 认证，支持文件夹操作
+- **Notion**：数据库API，自定义字段映射
+- **Obsidian**：本地库，Markdown格式化
 
-```python
-_SECTION_PATTERNS = [
-    ("abstract",     r"^[\s\d\.]*Abstract\s*$"),
-    ("methods",      r"^[\s\d\.]*Methods?\s*$|^[\s\d\.]*Materials?\s+and\s+Methods?\s*$"),
-    ("conclusion",   r"^[\s\d\.]*Conclusions?\s*$"),
-    # ... 其他章节
-]
-# re.IGNORECASE | re.MULTILINE | re.DOTALL
-```
+### 6. 自动化研究摘要
 
-降级：无法识别章节 → 启发式分割（首段 = abstract）。
+定时推送研究摘要：
 
-截断：超出 `max_tokens × 4` 字节时，按优先级（abstract → methods → conclusion → ...）保留重要章节。
-
-### 5.4 `sync/` — 双向文献同步
-
-#### Zotero
-- 推送前拉取已有 DOI 集合，自动跳过重复
-- Collection 不存在时自动创建
-- 每批最多 50 条（API 限制）
-
-#### Mendeley
-- 支持 `client_credentials` grant（CI 场景，无用户交互）
-- 支持 `Authorization Code` grant（完整读写权限）
-- Token 自动缓存，快过期时刷新
-
-#### Notion
-- 双向同步：`sync_to_notion` 推送 / `pull_from_notion` 拉取
-- 数据库属性字段需提前手动创建（字段名区分大小写）
-- 推送前检查标题重复，跳过已存在项
-
-### 5.5 `push/` — 定时推送子系统
-
-**架构**：`scheduler.py` → `digest.py` → `dispatcher.py` → `channels/`
-
-**推送渠道**：
-
-| 渠道 | 格式 | 限制 | 配置 |
-|------|------|------|------|
-| Slack | Block Kit JSON | 无实际限制 | `SLACK_WEBHOOK_URL` |
-| Telegram | HTML + 链接 | 4096 字符/条，自动分段 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
-| Email | 完整 HTML | 无限制 | `SMTP_*` × 5 |
-| WeCom | Markdown | 4096 字符 | `WECOM_WEBHOOK_URL` |
-| Feishu | Interactive Card | Blue Card 模板 | `FEISHU_WEBHOOK_URL` |
+- 多关键词监控
+- 可配置时间窗口
+- 自动排序过滤
+- 多渠道分发（Slack、Telegram、邮件、飞书、企业微信）
 
 ---
 
-## 6 MCP Server 工具清单
+## 系统架构
 
-| 分类 | Tool | 主要参数 |
-|------|------|----------|
-| 搜索 | `search_papers` | query, sources[], since_year, min_citations |
-| 搜索 | `batch_search` | queries[], max_results_per_query |
-| 全文 | `fetch_fulltext` | title, doi, arxiv_id, sections[], max_tokens, use_llm |
-| 全文 | `compare_papers` | papers[], aspect, use_llm |
-| 全文 | `extract_contributions` | title, doi, arxiv_id, use_llm |
-| 引用 | `get_citation_tree` | paper_id, depth, max_per_level |
-| 引用 | `trace_lineage` | paper_id, generations |
-| 趋势 | `analyze_trend` | keyword, years |
-| 趋势 | `compare_trends` | keywords[], years |
-| 同步 | `sync_to_zotero` | papers[], collection |
-| 同步 | `pull_from_zotero` | collection, limit |
-| 同步 | `sync_to_mendeley` | papers[], folder |
-| 同步 | `pull_from_mendeley` | folder, limit |
-| 同步 | `sync_to_notion` | papers[], database_id |
-| 同步 | `pull_from_notion` | database_id, limit |
-| 同步 | `sync_to_obsidian` | papers[], folder, include_abstract |
-| 同步 | `pull_from_obsidian` | folder, limit |
-| 推送 | `send_digest` | keywords[], channels[], since_days, title |
-
-`sources` 可选值：`openalex` · `arxiv` · `semantic_scholar` · `pubmed` · `crossref` · `europe_pmc` · `biorxiv` · `dblp` · `papers_with_code` · `ieee` · `acm` · `ssrn`
-
-`aspect` 可选值：`methodology` · `results` · `contribution` · `full`
-
-`paper_id` 格式：`ARXIV:1706.03762` · `DOI:10.xxx/xxx` · S2 内部 ID
-
----
-
-## 7 GitHub Actions 工作流
-
-### 文件概览
-
-| 文件 | 触发 | 内容 |
-|------|------|------|
-| `ci.yml` | push/PR | ruff lint → format check → pytest（3.11+3.12）→ build |
-| `daily-digest.yml` | 每日 08:00 UTC + 手动 | 安装 → 读 Secrets → paper-distill-push → 写 Summary |
-| `publish.yml` | GitHub Release | uv build → PyPI OIDC Trusted Publishing |
-
-### `daily-digest.yml` 手动参数
-
-在 **Actions → Daily Scholar Digest → Run workflow** 可覆盖：
-
-| 参数 | 说明 |
-|------|------|
-| `keywords` | 覆盖 `PUSH_KEYWORDS` Secret |
-| `channels` | 覆盖 `PUSH_CHANNELS` |
-| `since_days` | 搜索窗口天数 |
-| `max_papers` | 每关键词最多几篇 |
-| `dry_run` | `true` = 构建不推送（调试）|
-
-### 所需 GitHub Secrets
-
-| Secret | 是否必填 |
-|--------|---------|
-| `PUSH_KEYWORDS` | 必填 |
-| `PUSH_CHANNELS` | 必填（`slack,telegram,feishu` 等）|
-| `FEISHU_WEBHOOK_URL` | 飞书必填 |
-| `SLACK_WEBHOOK_URL` | Slack 必填 |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram 必填 |
-| `SMTP_USERNAME/PASSWORD/FROM/TO` | Email 必填 |
-| `WECOM_WEBHOOK_URL` | WeCom 必填 |
-| `SEMANTIC_SCHOLAR_API_KEY` | 推荐 |
-| `CORE_API_KEY` | 推荐（提升全文命中）|
-| `IEEE_API_KEY` | 启用 IEEE 必填 |
-| `SUB_AGENT_API_KEY` / `SUB_AGENT_BASE_URL` / `SUB_AGENT_MODEL` | LLM 增强解析（可选）|
-| `ZOTERO_API_KEY` / `ZOTERO_USER_ID` | Zotero 同步必填 |
-| `MENDELEY_CLIENT_ID` / `MENDELEY_CLIENT_SECRET` | Mendeley 同步必填 |
-| `NOTION_TOKEN` / `NOTION_DATABASE_ID` | Notion 同步必填 |
-| `OBSIDIAN_VAULT_PATH` | Obsidian 同步（本地路径，无法在 CI 用）|
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  AI客户端（Claude/Cursor/VSCode）                │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │ MCP协议（stdio/HTTP）
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   paper-distill-pro MCP服务器                   │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  搜索引擎（12个数据源）                                    │ │
+│  │  • 并发查询        • 智能去重                             │ │
+│  │  • 相关性评分      • 引用排序                             │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌──────────────────┐  ┌────────────────────────────────────┐ │
+│  │  全文处理模块    │  │  同步模块                           │ │
+│  │  • OA链接获取    │  │  Zotero ↔ Mendeley ↔ Notion ↔      │ │
+│  │  • PDF解析       │  │  Obsidian（双向同步）               │ │
+│  │  • LLM子代理     │  │                                      │ │
+│  └──────────────────┘  └────────────────────────────────────┘ │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  推送/摘要调度器                                          │ │
+│  │  • 关键词监控      • 多渠道分发                           │ │
+│  │  • GitHub Actions集成                                    │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │ HTTP/REST
+                              ↓
+                    ┌─────────────────────┐
+                    │  学术API接口        │
+                    │  （12个数据源）     │
+                    └─────────────────────┘
+```
 
 ---
 
-## 8 安装与配置
+## 安装指南
+
+### 快速安装（推荐）
 
 ```bash
-# 方式 1：uvx（推荐，无需安装）
+# 使用 uvx（无需安装，直接运行）
 uvx paper-distill-pro
+```
 
-# 方式 2：pip
+### 标准安装
+
+```bash
+# 使用 pip
 pip install paper-distill-pro
 
-# 方式 3：源码（开发者）
-git clone https://github.com/you/paper-distill-pro.git
-cd paper-distill-pro
-cp .env.example .env     # 填写配置
-pip install -e ".[dev]"
-pytest tests/ -v         # 40 个测试应全绿
+# 使用 uv（更快）
+uv pip install paper-distill-pro
 ```
 
-### 最简 `.env` 配置
+### 开发者安装
 
 ```bash
-# 基础：free 数据源 + Slack 推送
-PUSH_KEYWORDS=large language models,RAG
+# 克隆仓库
+git clone https://github.com/yourusername/paper-distill-pro.git
+cd paper-distill-pro
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件填写您的配置
+
+# 安装开发依赖
+pip install -e ".[dev]"
+
+# 运行测试
+pytest tests/ -v
+```
+
+### 系统要求
+
+- Python 3.11 或更高版本
+- API密钥为可选项（基础功能无需密钥）
+
+---
+
+## 配置说明
+
+从提供的模板创建配置文件：
+
+```bash
+cp .env.example .env
+```
+
+### 最小化配置（仅使用免费数据源）
+
+```bash
+# 基础配置 + Slack 通知
+PUSH_KEYWORDS=大语言模型,检索增强生成
 PUSH_CHANNELS=slack
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-UNPAYWALL_EMAIL=you@example.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
+UNPAYWALL_EMAIL=your@email.com
+```
 
-# 启用 IEEE
-IEEE_API_KEY=your_ieee_key
+### 完整配置示例
 
-# 提升全文命中
-CORE_API_KEY=your_core_key
+```bash
+# ── 学术API密钥（可选但推荐）──
+SEMANTIC_SCHOLAR_API_KEY=your_key_here
+CORE_API_KEY=your_core_key          # 提升全文获取成功率
+IEEE_API_KEY=your_ieee_key          # 从 developer.ieee.org 免费获取
 
+# ── 文献管理工具 ──
 # Zotero
-ZOTERO_API_KEY=xxx
-ZOTERO_USER_ID=12345678   # 数字 ID，非用户名
+ZOTERO_API_KEY=your_zotero_key
+ZOTERO_USER_ID=12345678
 
 # Mendeley
-MENDELEY_CLIENT_ID=xxx
-MENDELEY_CLIENT_SECRET=xxx
+MENDELEY_CLIENT_ID=your_client_id
+MENDELEY_CLIENT_SECRET=your_client_secret
 
 # Notion
-NOTION_TOKEN=secret_xxx
-NOTION_DATABASE_ID=xxx
+NOTION_TOKEN=secret_your_notion_token
+NOTION_DATABASE_ID=your_database_id
+
+# Obsidian（本地）
+OBSIDIAN_VAULT_PATH=~/Documents/ObsidianVault
+
+# ── 推送渠道 ──
+PUSH_CHANNELS=slack,telegram,email
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+SMTP_FROM=your_email@gmail.com
+SMTP_TO=recipient@email.com
+
+# ── LLM增强功能（可选）──
+SUB_AGENT_API_KEY=your_anthropic_key
+SUB_AGENT_MODEL=claude-3-5-sonnet-20241022
+
+# ── 摘要设置 ──
+PUSH_KEYWORDS=机器学习,深度学习,自然语言处理
+PUSH_SINCE_DAYS=7
+PUSH_MAX_PAPERS_PER_KEYWORD=5
+PUSH_DIGEST_TITLE=每日研究摘要
 ```
 
 ---
 
-## 9 接入 AI 客户端
+## MCP工具参考
+
+### 搜索工具
+
+#### `search_papers`
+跨多个学术数据库搜索，支持高级过滤。
+
+**参数：**
+- `query`（字符串）：搜索查询
+- `sources`（列表，可选）：指定搜索的数据库
+- `since_year`（整数，可选）：筛选发表年份
+- `min_citations`（整数，可选）：最小引用次数
+- `max_results`（整数，可选）：最大结果数（默认：20）
+
+**可用数据源：** `openalex`、`arxiv`、`semantic_scholar`、`pubmed`、`crossref`、`europe_pmc`、`biorxiv`、`dblp`、`papers_with_code`、`ieee`、`acm`、`ssrn`
+
+#### `batch_search`
+并行执行多个搜索查询。
+
+**参数：**
+- `queries`（字符串列表）：搜索查询列表
+- `max_results_per_query`（整数，可选）：每个查询的结果数（默认：20）
+
+### 全文工具
+
+#### `fetch_fulltext`
+检索和解析PDF全文，支持章节提取。
+
+**参数：**
+- `title`（字符串）：论文标题（用于识别）
+- `doi`（字符串，可选）：DOI标识符
+- `arxiv_id`（字符串，可选）：arXiv ID
+- `sections`（列表，可选）：要提取的章节
+- `max_tokens`（整数，可选）：提取的token限制
+- `use_llm`（布尔值，可选）：启用LLM增强
+
+#### `compare_papers`
+在特定方面比较多篇论文。
+
+**参数：**
+- `papers`（字典列表）：要比较的论文
+- `aspect`（字符串）：比较重点（`methodology`、`results`、`contribution`、`full`）
+- `use_llm`（布尔值，可选）：启用LLM分析
+
+#### `extract_contributions`
+提取论文的主要贡献。
+
+**参数：**
+- `title`（字符串）：论文标题
+- `doi`（字符串，可选）：DOI
+- `arxiv_id`（字符串，可选）：arXiv ID
+- `use_llm`（布尔值，可选）：启用LLM分析
+
+### 引用分析工具
+
+#### `get_citation_tree`
+构建展示关系的引用树。
+
+**参数：**
+- `paper_id`（字符串）：论文标识符（`ARXIV:id`、`DOI:doi` 或 S2 ID）
+- `depth`（整数，可选）：树深度（默认：1）
+- `max_per_level`（整数，可选）：每层最大论文数（默认：20）
+
+#### `trace_lineage`
+向前追溯研究谱系。
+
+**参数：**
+- `paper_id`（字符串）：论文标识符
+- `generations`（整数，可选）：向前追溯的代数（默认：2）
+
+### 趋势分析工具
+
+#### `analyze_trend`
+分析关键词的发表趋势。
+
+**参数：**
+- `keyword`（字符串）：搜索关键词
+- `years`（整数，可选）：年数（默认：5）
+
+#### `compare_trends`
+比较多个关键词的趋势。
+
+**参数：**
+- `keywords`（字符串列表）：要比较的关键词
+- `years`（整数，可选）：分析时间跨度（默认：5）
+
+### 同步工具
+
+#### Zotero同步
+- `sync_to_zotero`：将论文推送到Zotero集合
+- `pull_from_zotero`：从Zotero集合拉取论文
+
+#### Mendeley同步
+- `sync_to_mendeley`：将论文推送到Mendeley文件夹
+- `pull_from_mendeley`：从Mendeley文件夹拉取论文
+
+#### Notion同步
+- `sync_to_notion`：将论文推送到Notion数据库
+- `pull_from_notion`：从Notion数据库拉取论文
+
+#### Obsidian同步
+- `sync_to_obsidian`：将论文推送到Obsidian库
+- `pull_from_obsidian`：从Obsidian库拉取论文
+
+### 推送工具
+
+#### `send_digest`
+生成并发送研究摘要到多个渠道。
+
+**参数：**
+- `keywords`（字符串列表）：搜索关键词
+- `channels`（字符串列表）：目标渠道
+- `since_days`（整数，可选）：回溯天数（默认：7）
+- `title`（字符串，可选）：摘要标题
+
+**可用渠道：** `slack`、`telegram`、`email`、`wecom`、`feishu`
+
+---
+
+## 使用示例
+
+### 示例1：多源文献综述
+
+```python
+# 跨IEEE、arXiv和Semantic Scholar搜索
+papers = await search_papers(
+    query="transformer architecture",
+    sources=["ieee", "arxiv", "semantic_scholar"],
+    since_year=2020,
+    min_citations=50,
+    max_results=30
+)
+
+# 同步到多个平台
+await sync_to_zotero(papers, collection="Transformer综述")
+await sync_to_mendeley(papers, folder="ML研究")
+await sync_to_notion(papers)
+```
+
+### 示例2：引用分析
+
+```python
+# 分析"Attention Is All You Need"的影响力
+tree = await get_citation_tree(
+    paper_id="ARXIV:1706.03762",
+    depth=2,
+    max_per_level=50
+)
+
+# 追溯研究谱系
+lineage = await trace_lineage(
+    paper_id="ARXIV:1706.03762",
+    generations=3
+)
+```
+
+### 示例3：跨平台文献管理迁移
+
+```python
+# 从Zotero迁移到Notion
+zotero_papers = await pull_from_zotero(
+    collection="深度学习",
+    limit=100
+)
+await sync_to_notion(zotero_papers)
+
+# 从Mendeley迁移到Obsidian
+mendeley_papers = await pull_from_mendeley(
+    folder="研究",
+    limit=200
+)
+await sync_to_obsidian(
+    mendeley_papers,
+    folder="文献综述",
+    include_abstract=True
+)
+```
+
+### 示例4：研究趋势分析
+
+```python
+# 比较AI研究趋势
+trends = await compare_trends(
+    keywords=[
+        "reinforcement learning",
+        "transformers",
+        "diffusion models"
+    ],
+    years=5
+)
+
+# 分析特定领域
+report = await analyze_trend(
+    keyword="graph neural networks",
+    years=3
+)
+```
+
+---
+
+## AI客户端集成
 
 ### Claude Desktop
+
+添加到 `claude_desktop_config.json`：
+
+**macOS**：`~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows**：`%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -412,22 +482,18 @@ NOTION_DATABASE_ID=xxx
       "args": ["paper-distill-pro"],
       "env": {
         "SEMANTIC_SCHOLAR_API_KEY": "your_key",
-        "IEEE_API_KEY": "your_key",
-        "CORE_API_KEY": "your_key",
-        "UNPAYWALL_EMAIL": "you@example.com",
-        "ZOTERO_API_KEY": "your_key",
+        "IEEE_API_KEY": "your_ieee_key",
+        "CORE_API_KEY": "your_core_key",
+        "UNPAYWALL_EMAIL": "your@email.com",
+        "ZOTERO_API_KEY": "your_zotero_key",
         "ZOTERO_USER_ID": "12345678",
-        "NOTION_TOKEN": "secret_xxx",
-        "NOTION_DATABASE_ID": "xxx"
+        "NOTION_TOKEN": "secret_your_token",
+        "NOTION_DATABASE_ID": "your_database_id"
       }
     }
   }
 }
 ```
-
-配置文件路径：
-- macOS：`~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows：`%APPDATA%\Claude\claude_desktop_config.json`
 
 ### Cursor
 
@@ -444,7 +510,8 @@ NOTION_DATABASE_ID=xxx
 
 ### VS Code
 
-`.vscode/mcp.json`:
+创建 `.vscode/mcp.json`：
+
 ```json
 {
   "servers": {
@@ -457,204 +524,283 @@ NOTION_DATABASE_ID=xxx
 }
 ```
 
-### HTTP 模式（团队共享）
+### HTTP模式（团队共享）
 
+**服务器端：**
 ```bash
-# 服务端
 paper-distill-pro --transport http --port 8765
+```
 
-# 客户端
-{ "type": "http", "url": "http://your-server:8765/sse" }
+**客户端：**
+```json
+{
+  "type": "http",
+  "url": "http://your-server:8765/sse"
+}
 ```
 
 ---
 
-## 10 典型使用场景
+## GitHub Actions自动化
 
-### 场景 A：11 源综合调研 + 三库同步
+### 自动化每日摘要
+
+项目包含用于自动化研究摘要的GitHub Actions工作流：
+
+**功能特点：**
+- 定时运行（UTC时间每天08:00）
+- 手动触发并支持参数覆盖
+- 多渠道推送支持
+- 试运行模式用于测试
+- 自动故障日志记录
+
+**必需的GitHub Secrets：**
+
+| Secret | 用途 |
+|--------|------|
+| `PUSH_KEYWORDS` | 摘要内容 |
+| `PUSH_CHANNELS` | 目标平台 |
+| `SLACK_WEBHOOK_URL` | Slack通知 |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram通知 |
+| `SMTP_*` | 邮件通知 |
+| `FEISHU_WEBHOOK_URL` | 飞书通知 |
+| `WECOM_WEBHOOK_URL` | 企业微信通知 |
+| `SEMANTIC_SCHOLAR_API_KEY` | 增强搜索 |
+| `CORE_API_KEY` | 全文获取 |
+| `IEEE_API_KEY` | IEEE数据库 |
+
+**手动触发参数：**
+
+- `keywords`：覆盖默认关键词
+- `channels`：覆盖目标渠道
+- `since_days`：自定义时间窗口
+- `max_papers`：每个关键词的结果数
+- `dry_run`：测试模式（仅构建不发送）
+
+---
+
+## 开发指南
+
+### 项目结构
 
 ```
-"搜索近 2 年 mixture of experts，优先 IEEE 和 arXiv，引用量 > 20"
-→ search_papers(query="mixture of experts", since_year=2023,
-               sources=["ieee","arxiv","semantic_scholar"], min_citations=20)
-
-"把这些论文同步到 Zotero MoE 2025 + Mendeley Research + Notion"
-→ sync_to_zotero(papers=[...], collection="MoE 2025")
-→ sync_to_mendeley(papers=[...], folder="Research")
-→ sync_to_notion(papers=[...])
+paper-distill-pro/
+├── src/paper_distill_pro/
+│   ├── server.py              # MCP服务器（17个工具）
+│   ├── models.py              # Pydantic数据模型
+│   ├── config.py              # 配置管理
+│   ├── search/                # 多源搜索引擎
+│   │   ├── engine.py          # 并发搜索与评分
+│   │   ├── dedup.py           # 去重逻辑
+│   │   └── sources/           # 12个数据库连接器
+│   ├── fulltext/              # PDF处理
+│   │   ├── fetcher.py         # OA链接解析
+│   │   ├── parser.py          # PDF解析与提取
+│   │   └── sub_agent.py       # LLM增强
+│   ├── sync/                  # 文献管理
+│   │   ├── zotero.py          # Zotero Web API v3
+│   │   ├── mendeley.py        # Mendeley OAuth 2.0
+│   │   ├── notion.py          # Notion数据库API
+│   │   └── obsidian.py        # 本地库同步
+│   └── push/                  # 摘要自动化
+│       ├── digest.py          # 摘要组装
+│       ├── dispatcher.py      # 多渠道推送
+│       ├── scheduler.py       # CLI入口
+│       └── channels/          # 推送渠道实现
+├── tests/                     # 测试套件
+├── .github/workflows/         # CI/CD与自动化
+├── pyproject.toml             # 包配置
+└── .env.example               # 配置模板
 ```
 
-### 场景 B：三库互迁
+### 添加新数据源
 
-```
-# Zotero → Notion
-papers = await pull_from_zotero(collection="RAG 2025")
-await sync_to_notion(papers=papers)
+1. 在 `search/sources/` 中创建连接器：
 
-# Notion → Mendeley
-papers = await pull_from_notion()
-await sync_to_mendeley(papers=papers, folder="Imported")
-```
-
-### 场景 C：引用脉络分析
-
-```
-"Transformer 论文有哪些最重要的后续工作？"
-→ get_citation_tree(paper_id="ARXIV:1706.03762", depth=1)
-
-"帮我往前追溯 2 代参考文献"
-→ trace_lineage(paper_id="ARXIV:1706.03762", generations=2)
+```python
+class YourConnector(BaseConnector):
+    name = "your_source"
+    
+    async def search(self, query: str, max_results: int = 20) -> list[Paper]:
+        # 实现代码
+        pass
 ```
 
-### 场景 D：研究热点对比
+2. 在 `search/sources/__init__.py` 中注册：
 
+```python
+ALL_CONNECTORS["your_source"] = YourConnector
 ```
-"比较 chain-of-thought、RAG、MoE 近 5 年增速"
-→ compare_trends(keywords=["chain-of-thought","RAG","MoE"], years=5)
+
+3. 如需要，在 `config.py` 中添加配置
+
+### 添加推送渠道
+
+1. 在 `push/channels/` 中创建渠道：
+
+```python
+async def send_your_channel(digest: Digest) -> bool:
+    # 实现代码
+    pass
+```
+
+2. 在 `push/dispatcher.py` 中注册：
+
+```python
+_CHANNEL_MAP["your_channel"] = send_your_channel
+```
+
+3. 在 `config.py` 中添加配置
+
+### 调整评分算法
+
+在 `search/engine.py` 中修改权重：
+
+```python
+# 默认权重
+score = 0.40 * relevance + 0.35 * recency + 0.25 * citation_norm
+
+# 偏重经典文献
+score = 0.30 * relevance + 0.10 * recency + 0.60 * citation_norm
+
+# 偏重最新文献
+score = 0.25 * relevance + 0.65 * recency + 0.10 * citation_norm
 ```
 
 ---
 
-## 11 扩展开发指南
+## 测试
 
-### 添加新数据源（3 步）
-
-```python
-# Step 1: 新建 sources/scopus.py
-class ScopusConnector(BaseConnector):
-    name = "scopus"
-    async def search(self, query, max_results=20) -> list[Paper]:
-        resp = await self._get(BASE, params={"query": query}, headers={"X-ELS-APIKey": ...})
-        return [Paper(title=e["dc:title"], doi=e.get("prism:doi"), source=self.name)
-                for e in resp.json().get("search-results", {}).get("entry", [])]
-
-# Step 2: 在 sources/__init__.py 注册
-ALL_CONNECTORS["scopus"] = ScopusConnector
-
-# Step 3: 在 config.py 添加 key（如需）
-elsevier_api_key: Optional[str] = None
-```
-
-### 添加新推送渠道（3 步）
-
-```python
-# Step 1: 新建 push/channels/discord.py
-async def send_discord(digest: Digest) -> bool:
-    payload = {"embeds": [{"title": digest.title, "description": ...}]}
-    async with httpx.AsyncClient() as c:
-        resp = await c.post(settings.discord_webhook_url, json=payload)
-        return resp.status_code == 204
-
-# Step 2: 在 dispatcher.py 注册
-_CHANNEL_MAP["discord"] = send_discord
-
-# Step 3: 在 config.py 添加
-discord_webhook_url: Optional[str] = None
-```
-
-### 调整评分权重
-
-```python
-# search/engine.py → _score()
-score = 0.40 * relevance + 0.35 * recency + 0.25 * citation_norm  # 默认
-score = 0.30 * relevance + 0.10 * recency + 0.60 * citation_norm  # 偏重经典
-score = 0.25 * relevance + 0.65 * recency + 0.10 * citation_norm  # 偏重最新
-```
-
----
-
-## 12 测试
+### 运行测试
 
 ```bash
-pytest tests/ -v                           # 40 个离线单元测试
-pytest tests/ -v -k "TestDeduplication"   # 只运行去重测试
-pytest tests/ -v -k "Connector"           # 只运行 connector 注册测试
+# 所有测试
+pytest tests/ -v
+
+# 特定测试类别
+pytest tests/ -v -k "TestPaperModel"
+pytest tests/ -v -k "TestDeduplication"
+pytest tests/ -v -k "Connector"
 ```
 
-| 测试类 | 数量 | 覆盖内容 |
-|--------|------|----------|
-| `TestPaperModel` | 10 | dedup_key、short_ref、序列化、source IDs |
-| `TestDeduplication` | 9 | DOI/arXiv 去重、元数据合并、Jaccard |
-| `TestFulltextParser` | 8 | 章节识别、截断、降级、PyMuPDF 缺失 |
-| `TestDigestModel` | 3 | total_papers、DigestConfig、SyncResult |
-| `TestConfig` | 4 | 字符串解析 |
-| `TestScoring` | 2 | 分数范围、时效性 |
-| `TestConnectorRegistry` | 4 | 12 个注册、subset、未知忽略 |
+### 测试覆盖
+
+- **40+单元测试**覆盖核心功能
+- **离线测试**（无需API调用）
+- **测试类别**：
+  - 论文模型验证
+  - 去重逻辑
+  - 全文解析
+  - 连接器注册
+  - 配置解析
+  - 评分算法
 
 ---
 
-## 13 常见问题
+## 常见问题
 
-**Q：IEEE 没有结果？**
-未设置 `IEEE_API_KEY` 时静默跳过。免费申请：[developer.ieee.org](https://developer.ieee.org)
+### Q：为什么没有IEEE的结果？
+**A：** IEEE需要API密钥。没有设置`IEEE_API_KEY`时，该数据源会被跳过。可从 [developer.ieee.org](https://developer.ieee.org) 免费申请密钥。
 
-**Q：Mendeley 403 错误？**
-需完成 OAuth 流程。CI 环境使用 `client_credentials` grant（设置 client_id + client_secret 即可，无需用户交互）。
+### Q：如何提高全文获取成功率？
+**A：** 配置`CORE_API_KEY`（从 [core.ac.uk](https://core.ac.uk/services/api) 免费获取），这能显著提升开放获取PDF的发现率。
 
-**Q：Notion 同步失败？**
-① 数据库字段名必须与代码中的键名完全匹配；② Integration 需要被分享到目标数据库（Notion 数据库 → ... → Connections → 添加你的 Integration）。
+### Q：可以在没有任何API密钥的情况下使用吗？
+**A：** 可以！12个数据源中有9个无需密钥即可使用：OpenAlex、arXiv、Semantic Scholar、PubMed、CrossRef、Europe PMC、bioRxiv、DBLP 和 Papers with Code。
 
-**Q：全文获取返回"无全文"？**
-配置 `CORE_API_KEY`（免费）可显著提升命中率。订阅制论文无开放版本时自动降级到摘要，不报错。
-
-**Q：GitHub Actions 定时停了？**
-60 天无 commit 会暂停。在 Actions 页面手动触发一次即可恢复。
-
-**Q：如何调试 Tool 调用？**
+### Q：如何调试MCP工具调用？
+**A：** 启用调试日志：
 ```bash
 LOG_LEVEL=DEBUG paper-distill-pro
-# 或使用 MCP Inspector：
+```
+
+或使用MCP Inspector进行交互式调试：
+```bash
 npx @modelcontextprotocol/inspector uvx paper-distill-pro
 ```
 
----
+### Q：我的GitHub Actions工作流为什么停止了？
+**A：** GitHub在60天不活动后会禁用定时工作流。从 Actions → Daily Scholar Digest → Run workflow 手动触发一次即可恢复。
 
-## 14 技术选型
+### Q：如何在不同文献管理工具之间迁移？
+**A：** 使用双向同步工具：
+```python
+# Zotero → Notion
+papers = await pull_from_zotero("我的集合")
+await sync_to_notion(papers)
 
-| 组件 | 选型 | 理由 |
-|------|------|------|
-| MCP 框架 | `mcp` Python SDK | 官方，stdio/HTTP 均支持 |
-| HTTP | `httpx` + asyncio | 原生 async，连接池 |
-| 重试 | `tenacity` | 指数退避，条件灵活 |
-| 数据模型 | `pydantic v2` | 自动 JSON Schema |
-| 配置 | `pydantic-settings` | 类型安全环境变量 |
-| PDF | `PyMuPDF (fitz)` | 比 pdfminer 快 5-10× |
-| OAuth | `authlib` | Mendeley OAuth 2.0 |
-| 邮件 | `aiosmtplib` | 原生 async SMTP |
-| 日志 | `rich` | 彩色日志，traceback 清晰 |
-| 打包 | `hatchling` + `uv` | `uvx` 一键运行 |
-| 测试 | `pytest` + `pytest-asyncio` | asyncio_mode=auto |
-
----
-
-## 15 附录：快速参考
-
-```bash
-# CLI
-paper-distill-pro                               # stdio 模式
-paper-distill-pro --transport http --port 8765  # HTTP 模式
-paper-distill-push                              # 手动推送一次
-pytest tests/ -v                                # 40 个测试
-npx @modelcontextprotocol/inspector uvx paper-distill-pro  # 调试 UI
+# Mendeley → Obsidian
+papers = await pull_from_mendeley("研究")
+await sync_to_obsidian(papers, folder="文献")
 ```
 
-```
-# 数据源（sources 参数）
-free:    openalex arxiv semantic_scholar pubmed crossref europe_pmc biorxiv dblp papers_with_code acm ssrn
-key:     ieee (IEEE_API_KEY)
+### Q：Mendeley同步出现403错误？
+**A：** 需要完成OAuth流程。CI环境使用`client_credentials`授权（设置client_id + client_secret即可，无需用户交互）。
 
-# paper_id 格式（get_citation_tree / trace_lineage）
-ARXIV:1706.03762    DOI:10.1145/xxx    <S2内部40位ID>
+### Q：Notion同步失败？
+**A：** ①数据库字段名必须与代码中的键名完全匹配；②Integration需要被分享到目标数据库（Notion数据库 → ... → Connections → 添加你的Integration）。
 
-# aspect 参数（compare_papers）
-methodology  results  contribution  full
-
-# Notion 数据库必需字段
-Title(title)  Year(number)  Citations(number)  Authors(rich_text)
-Venue(rich_text)  DOI(rich_text)  arXiv(rich_text)  URL(url)
-Fields(multi_select)  Source(select)
-```
+### Q：全文获取返回"无全文"？
+**A：** 配置`CORE_API_KEY`（免费）可显著提升命中率。订阅制论文无开放版本时会自动降级到摘要，不会报错。
 
 ---
 
-*版本 0.1.0 · MIT License · [GitHub Actions 定时推送已配置]*
+## 技术栈
+
+| 组件 | 技术选择 | 用途 |
+|------|----------|------|
+| MCP框架 | `mcp` Python SDK | 模型上下文协议实现 |
+| HTTP客户端 | `httpx` + asyncio | 异步HTTP与连接池 |
+| 数据模型 | `pydantic v2` | 类型安全数据验证 |
+| 配置管理 | `pydantic-settings` | 环境变量管理 |
+| PDF处理 | `PyMuPDF (fitz)` | 快速PDF文本提取 |
+| OAuth | `authlib` | Mendeley OAuth 2.0流程 |
+| 邮件 | `aiosmtplib` | 异步SMTP客户端 |
+| 日志 | `rich` | 格式化控制台输出 |
+| 打包 | `hatchling` + `uv` | 现代Python打包 |
+| 测试 | `pytest` + `pytest-asyncio` | 异步测试支持 |
+
+---
+
+## 许可证
+
+MIT License - 详见 LICENSE 文件。
+
+---
+
+## 版本
+
+**当前版本：** 0.1.0
+
+**更新日志：**
+- 初始发布，支持12个学术数据源
+- 完整的MCP服务器实现，包含17个工具
+- 4个文献管理平台的双向同步
+- 多渠道摘要自动化
+- GitHub Actions工作流集成
+
+---
+
+## 贡献
+
+欢迎贡献！请随时提交issue或拉取请求。
+
+**贡献领域：**
+- 新增学术数据源
+- 新的推送渠道集成
+- 增强PDF解析算法
+- 改进评分策略
+- 文档改进
+
+---
+
+## 支持
+
+如有问题、疑问或建议：
+- 在GitHub上提交issue
+- 查看现有文档
+- 使用调试日志查看MCP工具输出
+
+---
+
+*为研究社区用 ❤️ 构建*

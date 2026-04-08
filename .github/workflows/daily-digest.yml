@@ -45,11 +45,8 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
 
-      - name: Install uv
-        run: pip install uv
-
       - name: Install package
-        run: uv pip install -e "."
+        run: pip install -e ".[dev]"
 
       # ── Override env vars from manual inputs ────────────────────────────
       - name: Apply workflow_dispatch overrides
@@ -59,15 +56,16 @@ jobs:
           [ -n "${{ github.event.inputs.channels }}" ] && echo "PUSH_CHANNELS=${{ github.event.inputs.channels }}" >> $GITHUB_ENV
           [ -n "${{ github.event.inputs.since_days }}" ] && echo "PUSH_SINCE_DAYS=${{ github.event.inputs.since_days }}" >> $GITHUB_ENV
           [ -n "${{ github.event.inputs.max_papers }}" ] && echo "PUSH_MAX_PAPERS_PER_KEYWORD=${{ github.event.inputs.max_papers }}" >> $GITHUB_ENV
+          [ -n "${{ github.event.inputs.dry_run }}" ] && echo "DRY_RUN=${{ github.event.inputs.dry_run }}" >> $GITHUB_ENV
 
       # ── Dry run: build digest, skip pushing ─────────────────────────────
       - name: Run digest (dry run — no push)
-        if: ${{ github.event.inputs.dry_run == 'true' }}
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
         env:
-          PUSH_KEYWORDS: ${{ secrets.PUSH_KEYWORDS }}
+          PUSH_KEYWORDS: ${{ github.event.inputs.keywords != '' && github.event.inputs.keywords || secrets.PUSH_KEYWORDS }}
           PUSH_CHANNELS: ""   # empty string = build only, no dispatch
-          PUSH_SINCE_DAYS: ${{ secrets.PUSH_SINCE_DAYS || '7' }}
-          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
+          PUSH_SINCE_DAYS: ${{ github.event.inputs.since_days != '' && github.event.inputs.since_days || secrets.PUSH_SINCE_DAYS || '7' }}
+          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ github.event.inputs.max_papers != '' && github.event.inputs.max_papers || secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
           PUSH_DIGEST_TITLE: ${{ secrets.PUSH_DIGEST_TITLE || 'Scholar Daily Digest' }}
           SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
           CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
@@ -82,14 +80,14 @@ jobs:
 
       # ── Live run ─────────────────────────────────────────────────────────
       - name: Run digest (live push)
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true')
         env:
           # ── Digest settings ──────────────────────────────────────────────
-          PUSH_KEYWORDS: ${{ secrets.PUSH_KEYWORDS }}
-          PUSH_SINCE_DAYS: ${{ secrets.PUSH_SINCE_DAYS || '7' }}
-          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
+          PUSH_KEYWORDS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.keywords != '' && github.event.inputs.keywords || secrets.PUSH_KEYWORDS }}
+          PUSH_SINCE_DAYS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.since_days != '' && github.event.inputs.since_days || secrets.PUSH_SINCE_DAYS || '7' }}
+          PUSH_MAX_PAPERS_PER_KEYWORD: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.max_papers != '' && github.event.inputs.max_papers || secrets.PUSH_MAX_PAPERS_PER_KEYWORD || '5' }}
           PUSH_DIGEST_TITLE: ${{ secrets.PUSH_DIGEST_TITLE || 'Scholar Daily Digest' }}
-          PUSH_CHANNELS: ${{ secrets.PUSH_CHANNELS || 'slack' }}
+          PUSH_CHANNELS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channels != '' && github.event.inputs.channels || secrets.PUSH_CHANNELS || 'slack' }}
 
           # ── Push channels ────────────────────────────────────────────────
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -126,6 +124,7 @@ jobs:
           MENDELEY_ACCESS_TOKEN: ${{ secrets.MENDELEY_ACCESS_TOKEN }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          OBSIDIAN_VAULT_PATH: ${{ secrets.OBSIDIAN_VAULT_PATH }}
 
         run: python -m paper_distill_pro.push.scheduler
 

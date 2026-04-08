@@ -17,4 +17,4 @@ htmlcov/
 .ruff_cache/
 .paper_cache/
 *.log
-github*
+docs/
