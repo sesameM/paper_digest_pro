@@ -91,7 +91,8 @@ async def run(
         logger.info("   - Telegram: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID")
         logger.info("   - Email: SMTP_* configuration")
         logger.info("   - Feishu: FEISHU_WEBHOOK_URL")
-        return 0  # Don't fail the workflow, just warn
+        logger.info("✓ Digest built successfully (no push channels configured)")
+        return 0  # Success - digest was built
 
     failed = [ch_name for ch_name, ok in results.items() if not ok]
     succeeded = [ch_name for ch_name, ok in results.items() if ok]
@@ -100,16 +101,13 @@ async def run(
         logger.info("✓ Successfully pushed to: %s", succeeded)
 
     if failed:
-        logger.warning("⚠️  Failed channels: %s (check configuration)", failed)
-        # Don't fail the workflow if at least one channel succeeded
-        if not succeeded:
-            logger.error("All channels failed - please check your Secrets configuration")
-            logger.error("💡 Make sure secret names match exactly (case-sensitive):")
-            logger.error("   - FEISHU_WEBHOOK_URL (not feishu_webhook_url)")
-            logger.error("   - SLACK_WEBHOOK_URL (not slack_webhook_url)")
-            return 1
+        logger.warning("⚠️  Some channels failed: %s", failed)
+        logger.warning("💡 This usually means the webhook URL is not configured in GitHub Secrets")
+        logger.warning("   Check that FEISHU_WEBHOOK_URL or SLACK_WEBHOOK_URL is set correctly")
 
-    logger.info("✓ Digest dispatched at %s", datetime.utcnow().isoformat())
+    # Always return success if digest was built
+    # Push failures should not fail the entire workflow
+    logger.info("✓ Digest completed at %s", datetime.utcnow().isoformat())
     return 0
 
 

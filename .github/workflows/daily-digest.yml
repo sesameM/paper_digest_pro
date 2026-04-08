@@ -53,17 +53,29 @@ jobs:
         run: |
           echo "=== Checking Secrets Configuration ==="
           echo "PUSH_CHANNELS: ${PUSH_CHANNELS:-'not set'}"
-          echo "FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:+[configured]}"
+          echo "PUSH_KEYWORDS: ${PUSH_KEYWORDS:+[configured]}"
           echo "SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:+[configured]}"
           echo "TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:+[configured]}"
+          echo "TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:+[configured]}"
+          echo "SMTP_USERNAME: ${SMTP_USERNAME:+[configured]}"
+          echo "WECOM_WEBHOOK_URL: ${WECOM_WEBHOOK_URL:+[configured]}"
+          echo "FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:+[configured]}"
           echo "SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:+[configured]}"
+          echo "CORE_API_KEY: ${CORE_API_KEY:+[configured]}"
+          echo "IEEE_API_KEY: ${IEEE_API_KEY:+[configured]}"
           echo "==================================="
         env:
           PUSH_CHANNELS: ${{ secrets.PUSH_CHANNELS }}
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          PUSH_KEYWORDS: ${{ secrets.PUSH_KEYWORDS }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+          IEEE_API_KEY: ${{ secrets.IEEE_API_KEY }}
 
       # ── Override env vars from manual inputs ────────────────────────────
       - name: Apply workflow_dispatch overrides
