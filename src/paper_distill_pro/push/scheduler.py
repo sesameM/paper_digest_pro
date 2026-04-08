@@ -85,8 +85,13 @@ async def run(
 
     # Check results
     if not results:
-        logger.warning("No channels were successfully configured")
-        return 0
+        logger.warning("No channels were successfully configured - digest built but not sent")
+        logger.info("💡 To enable push notifications, configure at least one channel:")
+        logger.info("   - Slack: SLACK_WEBHOOK_URL")
+        logger.info("   - Telegram: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID")
+        logger.info("   - Email: SMTP_* configuration")
+        logger.info("   - Feishu: FEISHU_WEBHOOK_URL")
+        return 0  # Don't fail the workflow, just warn
 
     failed = [ch_name for ch_name, ok in results.items() if not ok]
     succeeded = [ch_name for ch_name, ok in results.items() if ok]
@@ -98,7 +103,10 @@ async def run(
         logger.warning("⚠️  Failed channels: %s (check configuration)", failed)
         # Don't fail the workflow if at least one channel succeeded
         if not succeeded:
-            logger.error("All channels failed")
+            logger.error("All channels failed - please check your Secrets configuration")
+            logger.error("💡 Make sure secret names match exactly (case-sensitive):")
+            logger.error("   - FEISHU_WEBHOOK_URL (not feishu_webhook_url)")
+            logger.error("   - SLACK_WEBHOOK_URL (not slack_webhook_url)")
             return 1
 
     logger.info("✓ Digest dispatched at %s", datetime.utcnow().isoformat())
