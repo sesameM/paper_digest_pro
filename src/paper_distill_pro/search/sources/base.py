@@ -32,7 +32,9 @@ class BaseConnector(ABC):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
+        retry=retry_if_exception_type(
+            (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)
+        ),
         reraise=True,
     )
     async def _get(self, url: str, **kwargs) -> httpx.Response:
