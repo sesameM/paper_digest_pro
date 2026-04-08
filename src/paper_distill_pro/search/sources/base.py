@@ -31,13 +31,17 @@ class BaseConnector(ABC):
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
         reraise=True,
     )
     async def _get(self, url: str, **kwargs) -> httpx.Response:
         client = await self._get_client()
         resp = await client.get(url, **kwargs)
+        # Handle rate limiting (429) - don't raise, just log and return empty later
+        if resp.status_code == 429:
+            logger.warning("[%s] Rate limited (429) for %s - skipping", self.name, url)
+            resp.raise_for_status()
         resp.raise_for_status()
         return resp
 

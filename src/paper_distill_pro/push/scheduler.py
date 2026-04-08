@@ -83,10 +83,23 @@ async def run(
     logger.info("Digest built: %d sections, %d papers", len(digest.sections), digest.total_papers())
     results = await dispatch(digest, channels=ch)
 
+    # Check results
+    if not results:
+        logger.warning("No channels were successfully configured")
+        return 0
+
     failed = [ch_name for ch_name, ok in results.items() if not ok]
+    succeeded = [ch_name for ch_name, ok in results.items() if ok]
+
+    if succeeded:
+        logger.info("✓ Successfully pushed to: %s", succeeded)
+
     if failed:
-        logger.error("Failed channels: %s", failed)
-        return 1
+        logger.warning("⚠️  Failed channels: %s (check configuration)", failed)
+        # Don't fail the workflow if at least one channel succeeded
+        if not succeeded:
+            logger.error("All channels failed")
+            return 1
 
     logger.info("✓ Digest dispatched at %s", datetime.utcnow().isoformat())
     return 0
