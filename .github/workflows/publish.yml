@@ -23,13 +23,13 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         # Note: Using OIDC trusted publishing (no password needed)
         # For first-time publication, manually create the project at:
-        # https://pypi.org/manage/project/ paperdistillpro/
+        # https://pypi.org/manage/project/ paperdigestpro/
         # Then configure trusted publisher at:
         # https://docs.pypi.org/trusted-publishers/adding-a-publisher/
         #
         # Trusted publisher configuration:
-        # - PyPI project name:  paperdistillpro
-        # - Owner:sesameM
+        # - PyPI project name: paperdigestpro
+        # - Owner: sesameM
         # - Repository name: paper_digest_pro
         # - Workflow: publish.yml
         # - Environment: pypi

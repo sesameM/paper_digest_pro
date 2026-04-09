@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "paperdistillpro"
+name = "paperdigestpro"
 version = "1.0.0"
 description = "MCP server for academic paper search (11 sources), full-text parsing, bidirectional sync, and multi-platform push"
 readme = "README.md"
